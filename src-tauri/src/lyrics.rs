@@ -8,7 +8,7 @@ use lofty::{
     flac::FlacFile,
     id3::v2::{
         BinaryFrame, Frame, FrameId, Id3v2Tag, SyncTextContentType, SynchronizedTextFrame,
-        TimestampFormat, UnsynchronizedTextFrame,
+        TimestampFormat, UnsynchronizedTextFrame, ExtendedTextFrame,
     },
     mpeg::MpegFile,
     TextEncoding,
@@ -48,8 +48,7 @@ pub async fn apply_string_lyrics_for_track(
     synced_lyrics: &str,
     is_try_embed_lyrics: bool,
 ) -> Result<()> {
-    save_plain_lyrics(&track.file_path, plain_lyrics)?;
-    save_synced_lyrics(&track.file_path, synced_lyrics)?;
+    // save_plain_lyrics(&track.file_path, plain_lyrics)?;
 
     if is_try_embed_lyrics {
         embed_lyrics(&track.file_path, &plain_lyrics, &synced_lyrics);
@@ -65,14 +64,14 @@ pub async fn apply_lyrics_for_track(
 ) -> Result<Response> {
     match &lyrics {
         Response::SyncedLyrics(synced_lyrics, plain_lyrics) => {
-            save_synced_lyrics(&track.file_path, &synced_lyrics)?;
+            // save_synced_lyrics(&track.file_path, &synced_lyrics)?;
             if is_try_embed_lyrics {
                 embed_lyrics(&track.file_path, &plain_lyrics, &synced_lyrics);
             }
             Ok(lyrics)
         }
         Response::UnsyncedLyrics(plain_lyrics) => {
-            save_plain_lyrics(&track.file_path, &plain_lyrics)?;
+            // save_plain_lyrics(&track.file_path, &plain_lyrics)?;
             if is_try_embed_lyrics {
                 embed_lyrics(&track.file_path, &plain_lyrics, "");
             }
@@ -86,31 +85,31 @@ pub async fn apply_lyrics_for_track(
     }
 }
 
-fn save_plain_lyrics(track_path: &str, lyrics: &str) -> Result<()> {
-    let txt_path = build_txt_path(track_path)?;
-    let lrc_path = build_lrc_path(track_path)?;
+// fn save_plain_lyrics(track_path: &str, lyrics: &str) -> Result<()> {
+//     let txt_path = build_txt_path(track_path)?;
+//     let lrc_path = build_lrc_path(track_path)?;
 
-    let _ = remove_file(lrc_path);
+//     let _ = remove_file(lrc_path);
 
-    if lyrics.is_empty() {
-        let _ = remove_file(txt_path);
-    } else {
-        write(txt_path, lyrics)?;
-    }
-    Ok(())
-}
+//     if lyrics.is_empty() {
+//         let _ = remove_file(txt_path);
+//     } else {
+//         write(txt_path, lyrics)?;
+//     }
+//     Ok(())
+// }
 
-fn save_synced_lyrics(track_path: &str, lyrics: &str) -> Result<()> {
-    let txt_path = build_txt_path(track_path)?;
-    let lrc_path = build_lrc_path(track_path)?;
-    if lyrics.is_empty() {
-        let _ = remove_file(lrc_path);
-    } else {
-        let _ = remove_file(txt_path);
-        write(lrc_path, lyrics)?;
-    }
-    Ok(())
-}
+// fn save_synced_lyrics(track_path: &str, lyrics: &str) -> Result<()> {
+//     let txt_path = build_txt_path(track_path)?;
+//     let lrc_path = build_lrc_path(track_path)?;
+//     if lyrics.is_empty() {
+//         let _ = remove_file(lrc_path);
+//     } else {
+//         let _ = remove_file(txt_path);
+//         write(lrc_path, lyrics)?;
+//     }
+//     Ok(())
+// }
 
 fn save_instrumental(track_path: &str) -> Result<()> {
     let txt_path = build_txt_path(track_path)?;
@@ -187,7 +186,53 @@ fn embed_lyrics_mp3(track_path: &str, plain_lyrics: &str, synced_lyrics: &str) -
 
     if let Some(id3v2) = mp3_file.id3v2_mut() {
         insert_id3v2_uslt_frame(id3v2, plain_lyrics)?;
-        insert_id3v2_sylt_frame(id3v2, synced_lyrics)?;
+
+        // Get title and artist from tags, fallback to empty string if not found
+        let title = id3v2.get(&FrameId::new("TIT2")?)
+            .and_then(|f| {
+                if let Frame::Text(text) = f {
+                    Some(text.value.as_str())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or("");
+        // let artist = id3v2.get(&FrameId::new("TPE1")?)
+        //     .and_then(|f| {
+        //         if let Frame::Text(text) = f {
+        //             Some(text.value.as_str())
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .unwrap_or("");
+
+        // Build the prefix
+        let prefix = if !title.is_empty() {
+            format!("[0:00.000] 🎵 {} 🎵\n\n", title)
+        } else {
+            "[0:00.000] ---\n\n".to_string()
+        };
+
+        // Prepend the prefix if not already present
+        let lyrics_with_prefix = if synced_lyrics.is_empty() {
+            "" // Do not add any prefix if there are no synced lyrics
+        } else if synced_lyrics.starts_with(&prefix) {
+            synced_lyrics
+        } else {
+            Box::leak(format!("{}{}", prefix, synced_lyrics).into_boxed_str())
+        };
+
+        // let lyrics_with_prefix = if synced_lyrics.starts_with("[0:00.000] ---") {
+        //     synced_lyrics
+        // } else {
+        //     Box::leak(format!("[0:00.000] ---\n{}", synced_lyrics).into_boxed_str())
+        // };
+
+        insert_id3v2_sylt_frame(id3v2, lyrics_with_prefix)?;
+        insert_id3v2_txxx_lyrics_frame(id3v2, lyrics_with_prefix)?;
+        // insert_id3v2_sylt_frame(id3v2, synced_lyrics)?;
+        // insert_id3v2_txxx_lyrics_frame(id3v2, synced_lyrics)?;
 
         mp3_file.save_to_path(track_path, WriteOptions::default())?;
     }
@@ -199,7 +244,7 @@ fn insert_id3v2_uslt_frame(id3v2: &mut Id3v2Tag, plain_lyrics: &str) -> Result<(
     if !plain_lyrics.is_empty() {
         let uslt_frame = UnsynchronizedTextFrame::new(
             TextEncoding::UTF8,
-            [b'X', b'X', b'X'],
+            [b'e', b'n', b'g'],
             "".to_string(),
             plain_lyrics.to_string(),
         );
@@ -217,15 +262,15 @@ fn insert_id3v2_sylt_frame(id3v2: &mut Id3v2Tag, synced_lyrics: &str) -> Result<
 
         let sylt_frame = SynchronizedTextFrame::new(
             TextEncoding::UTF8,
-            [b'X', b'X', b'X'],
+            [b'e', b'n', b'g'],
             TimestampFormat::MS,
             SyncTextContentType::Lyrics,
             None,
             synced_lyrics_vec,
         );
-
         let sylt_frame_byte = sylt_frame.as_bytes()?;
         let sylt_frame_id = FrameId::new("SYLT")?;
+
         id3v2.insert(Frame::Binary(BinaryFrame::new(
             sylt_frame_id,
             sylt_frame_byte,
@@ -237,14 +282,48 @@ fn insert_id3v2_sylt_frame(id3v2: &mut Id3v2Tag, synced_lyrics: &str) -> Result<
     Ok(())
 }
 
+fn insert_id3v2_txxx_lyrics_frame(id3v2: &mut Id3v2Tag, lyrics: &str) -> Result<()> {
+    if !lyrics.is_empty() {
+        let txxx_frame = Frame::UserText(
+            ExtendedTextFrame::new(
+                TextEncoding::UTF8,
+                "LYRICS".to_string(),
+                lyrics.to_string(),
+            )
+        );
+        id3v2.insert(txxx_frame);
+    } else {
+        let _ = id3v2.remove(&FrameId::new("TXXX/LYRICS")?);
+    }
+    Ok(())
+}
+
 fn synced_lyrics_to_sylt_vec(synced_lyrics: &str) -> Result<Vec<(u32, String)>> {
-    let lyrics = Lyrics::from_str(synced_lyrics)?;
+    let mut lines = synced_lyrics.lines();
+    let mut result = Vec::new();
+
+    // Check for a prefix line at the start
+    if let Some(first_line) = lines.clone().next() {
+        if first_line.starts_with("[0:00.000]") {
+            // Add the prefix line as the first timed line
+            let prefix_text = first_line
+                .trim_start_matches("[0:00.000]")
+                .trim()
+                .to_string();
+            result.push((0, prefix_text));
+            // Skip the prefix line for the parser below
+            lines.next();
+        }
+    }
+
+    // Parse the rest using the lrc crate
+    let rest = lines.collect::<Vec<_>>().join("\n");
+    let lyrics = Lyrics::from_str(&rest)?;
     let lyrics_vec = lyrics.get_timed_lines();
 
-    let converted_lyrics: Vec<(u32, String)> = lyrics_vec
-        .iter()
-        .map(|(time_tag, text)| (time_tag.get_timestamp() as u32, text.to_string()))
-        .collect();
+    for (time_tag, text) in lyrics_vec {
+        result.push((time_tag.get_timestamp() as u32, text.to_string()));
+    }
 
-    Ok(converted_lyrics)
+    Ok(result)
 }
