@@ -467,6 +467,7 @@ async fn save_lyrics(
         &track,
         &plain_lyrics,
         &synced_lyrics,
+        is_instrumental,
         is_try_embed_lyrics,
     )
     .await

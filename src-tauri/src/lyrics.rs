@@ -46,12 +46,13 @@ pub async fn apply_string_lyrics_for_track(
     track: &PersistentTrack,
     plain_lyrics: &str,
     synced_lyrics: &str,
+    is_instrumental: bool,
     is_try_embed_lyrics: bool,
 ) -> Result<()> {
     // save_plain_lyrics(&track.file_path, plain_lyrics)?;
 
     if is_try_embed_lyrics {
-        embed_lyrics(&track.file_path, &plain_lyrics, &synced_lyrics);
+        embed_lyrics(&track.file_path, &plain_lyrics, &synced_lyrics, is_instrumental);
     }
 
     Ok(())
@@ -66,19 +67,31 @@ pub async fn apply_lyrics_for_track(
         Response::SyncedLyrics(synced_lyrics, plain_lyrics) => {
             // save_synced_lyrics(&track.file_path, &synced_lyrics)?;
             if is_try_embed_lyrics {
-                embed_lyrics(&track.file_path, &plain_lyrics, &synced_lyrics);
+                embed_lyrics(&track.file_path, &plain_lyrics, &synced_lyrics, false);
             }
             Ok(lyrics)
         }
         Response::UnsyncedLyrics(plain_lyrics) => {
             // save_plain_lyrics(&track.file_path, &plain_lyrics)?;
             if is_try_embed_lyrics {
-                embed_lyrics(&track.file_path, &plain_lyrics, "");
+                embed_lyrics(&track.file_path, &plain_lyrics, "", false);
             }
             Ok(lyrics)
         }
         Response::IsInstrumental => {
-            save_instrumental(&track.file_path)?;
+            // save_instrumental(&track.file_path)?;
+            // if is_try_embed_lyrics {
+            //     if track_path.to_lowercase().ends_with(".mp3") {
+            //         match embed_lyrics_instr_mp3(track_path) {
+            //             Ok(_) => (),
+            //             Err(e) => println!("Error embedding lyrics in MP3: {}", e),
+            //         }
+            //     }
+            //     embed_lyrics_instr(&track.file_path, &plain_lyrics, "");
+            // }
+            if is_try_embed_lyrics {
+                embed_lyrics(&track.file_path, "[Instrumental]", "[0:00.000] [Instrumental]", true);
+            }
             Ok(lyrics)
         }
         _ => Ok(lyrics),
@@ -111,17 +124,14 @@ pub async fn apply_lyrics_for_track(
 //     Ok(())
 // }
 
-fn save_instrumental(track_path: &str) -> Result<()> {
-    let txt_path = build_txt_path(track_path)?;
-    let lrc_path = build_lrc_path(track_path)?;
-
-    let _ = remove_file(&lrc_path);
-    let _ = remove_file(txt_path);
-
-    write(lrc_path, "[au: instrumental]")?;
-
-    Ok(())
-}
+// fn save_instrumental(track_path: &str) -> Result<()> {
+//     let txt_path = build_txt_path(track_path)?;
+//     let lrc_path = build_lrc_path(track_path)?;
+//     let _ = remove_file(&lrc_path);
+//     let _ = remove_file(txt_path);
+//     write(lrc_path, "[au: instrumental]")?;
+//     Ok(())
+// }
 
 fn build_txt_path(track_path: &str) -> Result<PathBuf> {
     let path = Path::new(track_path);
@@ -143,21 +153,21 @@ fn build_lrc_path(track_path: &str) -> Result<PathBuf> {
     Ok(lrc_path)
 }
 
-fn embed_lyrics(track_path: &str, plain_lyrics: &str, synced_lyrics: &str) {
+fn embed_lyrics(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, is_instrumental: bool) {
     if track_path.to_lowercase().ends_with(".mp3") {
-        match embed_lyrics_mp3(track_path, plain_lyrics, synced_lyrics) {
+        match embed_lyrics_mp3(track_path, plain_lyrics, synced_lyrics, is_instrumental) {
             Ok(_) => (),
             Err(e) => println!("Error embedding lyrics in MP3: {}", e),
         }
     } else if track_path.to_lowercase().ends_with(".flac") {
-        match embed_lyrics_flac(track_path, plain_lyrics, synced_lyrics) {
+        match embed_lyrics_flac(track_path, plain_lyrics, synced_lyrics, is_instrumental) {
             Ok(_) => (),
             Err(e) => println!("Error embedding lyrics in FLAC: {}", e),
         }
     }
 }
 
-fn embed_lyrics_flac(track_path: &str, plain_lyrics: &str, synced_lyrics: &str) -> Result<()> {
+fn embed_lyrics_flac(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, is_instrumental: bool) -> Result<()> {
     let mut file_content = OpenOptions::new().read(true).write(true).open(track_path)?;
     let mut flac_file = FlacFile::read_from(&mut file_content, ParseOptions::new())?;
 
@@ -180,59 +190,58 @@ fn embed_lyrics_flac(track_path: &str, plain_lyrics: &str, synced_lyrics: &str) 
     Ok(())
 }
 
-fn embed_lyrics_mp3(track_path: &str, plain_lyrics: &str, synced_lyrics: &str) -> Result<()> {
+fn embed_lyrics_mp3(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, is_instrumental: bool) -> Result<()> {
     let mut file_content = OpenOptions::new().read(true).write(true).open(track_path)?;
     let mut mp3_file = MpegFile::read_from(&mut file_content, ParseOptions::new())?;
 
     if let Some(id3v2) = mp3_file.id3v2_mut() {
-        insert_id3v2_uslt_frame(id3v2, plain_lyrics)?;
-
-        // Get title and artist from tags, fallback to empty string if not found
-        let title = id3v2.get(&FrameId::new("TIT2")?)
-            .and_then(|f| {
-                if let Frame::Text(text) = f {
-                    Some(text.value.as_str())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or("");
-        // let artist = id3v2.get(&FrameId::new("TPE1")?)
-        //     .and_then(|f| {
-        //         if let Frame::Text(text) = f {
-        //             Some(text.value.as_str())
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .unwrap_or("");
-
-        // Build the prefix
-        let prefix = if !title.is_empty() {
-            format!("[0:00.000] 🎵 {} 🎵\n\n", title)
+        if is_instrumental {
+            insert_id3v2_uslt_frame(id3v2, "[Instrumental]")?;
+            insert_id3v2_sylt_frame(id3v2, "[0:00.000] [Instrumental]")?;
+            insert_id3v2_txxx_lyrics_frame(id3v2, "[0:00.000] [Instrumental]")?;
         } else {
-            "[0:00.000] ---\n\n".to_string()
-        };
+            insert_id3v2_uslt_frame(id3v2, plain_lyrics)?;
 
-        // Prepend the prefix if not already present
-        let lyrics_with_prefix = if synced_lyrics.is_empty() {
-            "" // Do not add any prefix if there are no synced lyrics
-        } else if synced_lyrics.starts_with(&prefix) {
-            synced_lyrics
-        } else {
-            Box::leak(format!("{}{}", prefix, synced_lyrics).into_boxed_str())
-        };
+            // Get title and artist from tags, fallback to empty string if not found
+            let title = id3v2.get(&FrameId::new("TIT2")?)
+                .and_then(|f| {
+                    if let Frame::Text(text) = f {
+                        Some(text.value.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or("");
+            // let artist = id3v2.get(&FrameId::new("TPE1")?)
+            //     .and_then(|f| {
+            //         if let Frame::Text(text) = f {
+            //             Some(text.value.as_str())
+            //         } else {
+            //             None
+            //         }
+            //     })
+            //     .unwrap_or("");
 
-        // let lyrics_with_prefix = if synced_lyrics.starts_with("[0:00.000] ---") {
-        //     synced_lyrics
-        // } else {
-        //     Box::leak(format!("[0:00.000] ---\n{}", synced_lyrics).into_boxed_str())
-        // };
+            // Build the prefix
+            let prefix = if !title.is_empty() {
+                format!("[0:00.000] {}\n\n", title)
+                // format!("[0:00.000] 🎵 {} 🎵\n\n\n", title)
+            } else {
+                "[0:00.000] ---\n\n".to_string()
+            };
 
-        insert_id3v2_sylt_frame(id3v2, lyrics_with_prefix)?;
-        insert_id3v2_txxx_lyrics_frame(id3v2, lyrics_with_prefix)?;
-        // insert_id3v2_sylt_frame(id3v2, synced_lyrics)?;
-        // insert_id3v2_txxx_lyrics_frame(id3v2, synced_lyrics)?;
+            // Prepend the prefix if not already present
+            let lyrics_with_prefix = if synced_lyrics.is_empty() {
+                "" // Do not add any prefix if there are no synced lyrics
+            } else if synced_lyrics.starts_with(&prefix) {
+                synced_lyrics
+            } else {
+                Box::leak(format!("{}{}", prefix, synced_lyrics).into_boxed_str())
+            };
+
+            insert_id3v2_sylt_frame(id3v2, lyrics_with_prefix)?;
+            insert_id3v2_txxx_lyrics_frame(id3v2, lyrics_with_prefix)?;
+        }
 
         mp3_file.save_to_path(track_path, WriteOptions::default())?;
     }
@@ -308,7 +317,7 @@ fn synced_lyrics_to_sylt_vec(synced_lyrics: &str) -> Result<Vec<(u32, String)>> 
             // Add the prefix line as the first timed line
             let prefix_text = first_line
                 .trim_start_matches("[0:00.000]")
-                .trim()
+                // .trim()
                 .to_string();
             result.push((0, prefix_text));
             // Skip the prefix line for the parser below
