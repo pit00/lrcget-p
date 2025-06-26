@@ -224,10 +224,10 @@ fn embed_lyrics_mp3(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, i
 
             // Build the prefix
             let prefix = if !title.is_empty() {
-                format!("[0:00.000] {}\n\n", title)
-                // format!("[0:00.000] 🎵 {} 🎵\n\n\n", title)
+                format!("[0:00.000] <{}>\n", title)
+                // format!("[0:00.000] 🎵 {} 🎵\n", title)
             } else {
-                "[0:00.000] ---\n\n".to_string()
+                "[0:00.000] ---\n".to_string()
             };
 
             // Prepend the prefix if not already present
@@ -317,7 +317,7 @@ fn synced_lyrics_to_sylt_vec(synced_lyrics: &str) -> Result<Vec<(u32, String)>> 
             // Add the prefix line as the first timed line
             let prefix_text = first_line
                 .trim_start_matches("[0:00.000]")
-                // .trim()
+                .trim()
                 .to_string();
             result.push((0, prefix_text));
             // Skip the prefix line for the parser below

@@ -8,9 +8,9 @@ LRCGET is the official client of [LRCLIB](https://lrclib.net) service.
 
 ## Download
 
-🎉 Latest version: v0.9.0
+🎉 Latest version: v0.9.20
 
-Visit the [release page](https://github.com/tranxuanthang/lrcget/releases) to download.
+<!-- Visit the [release page](https://github.com/pit00/lrcget-p/releases) to download. -->
 
 OS Support:
 
@@ -20,41 +20,13 @@ OS Support:
 
 ## Screenshots
 
-![02.png](screenshots/02.png?2)
+![02.png](screenshots/02.png)
 
-![03.png](screenshots/03.png?2)
+![03.png](screenshots/03.png)
 
-![04.png](screenshots/04.png?2)
+![04.png](screenshots/04.png)
 
-![05.png](screenshots/05.png?2)
-
-## Donation
-
-Toss a coin to your developer?
-
-**GitHub Sponsors (Recommended - 100% of your support goes to the developer):**
-
-https://github.com/sponsors/tranxuanthang
-
-**Buy Me a Coffee:**
-
-https://www.buymeacoffee.com/thangtran
-
-**Paypal:**
-
-https://paypal.me/tranxuanthang98
-
-**Monero (XMR):**
-
-```
-43ZN5qDdGQhPGthFnngD8rjCHYLsEFBcyJjDC1GPZzVxWSfT8R48QCLNGyy6Z9LvatF5j8kSgv23DgJpixJg8bnmMnKm3b7
-```
-
-**Litecoin (LTC):**
-
-```
-ltc1q7texq5qsp59gclqlwf6asrqmhm98gruvz94a48
-```
+![05.png](screenshots/05.png)
 
 ## Troubleshooting
 
@@ -73,12 +45,6 @@ If you are using Windows 10 LTSC, or have tried running some scripts to debloat 
 **Scrollbar is invisible in Linux (KDE Plasma 5/6)**
 
 The exact cause is still unknown, but it can be fixed by going to System Settings > Appearance > Global Theme > Application Style > Configure GNOME/GTK Application Style... > Change to something other than breeze (Awaita or Default) > Apply (see comment https://github.com/tranxuanthang/lrcget/issues/44#issuecomment-1962998268)
-
-## Contact
-
-If you prefer to contact by email:
-
-[hoangtudevops@protonmail.com](mailto:hoangtudevops@protonmail.com)
 
 ## Development
 
