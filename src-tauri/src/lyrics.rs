@@ -14,9 +14,9 @@ use lofty::{
     TextEncoding,
 };
 use lrc::Lyrics;
-use std::fs::{remove_file, write, OpenOptions};
-use std::path::Path;
-use std::path::PathBuf;
+use std::fs::OpenOptions; // {remove_file, write, };
+// use std::path::Path;
+// use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Clone, Debug)]
@@ -133,25 +133,23 @@ pub async fn apply_lyrics_for_track(
 //     Ok(())
 // }
 
-fn build_txt_path(track_path: &str) -> Result<PathBuf> {
-    let path = Path::new(track_path);
-    let parent_path = path.parent().unwrap();
-    let file_name_without_extension = path.file_stem().unwrap().to_str().unwrap();
-    let txt_path =
-        Path::new(parent_path).join(format!("{}.{}", file_name_without_extension, "txt"));
+// fn build_txt_path(track_path: &str) -> Result<PathBuf> {
+//     let path = Path::new(track_path);
+//     let parent_path = path.parent().unwrap();
+//     let file_name_without_extension = path.file_stem().unwrap().to_str().unwrap();
+//     let txt_path =
+//         Path::new(parent_path).join(format!("{}.{}", file_name_without_extension, "txt"));
+//     Ok(txt_path)
+// }
 
-    Ok(txt_path)
-}
-
-fn build_lrc_path(track_path: &str) -> Result<PathBuf> {
-    let path = Path::new(track_path);
-    let parent_path = path.parent().unwrap();
-    let file_name_without_extension = path.file_stem().unwrap().to_str().unwrap();
-    let lrc_path =
-        Path::new(parent_path).join(format!("{}.{}", file_name_without_extension, "lrc"));
-
-    Ok(lrc_path)
-}
+// fn build_lrc_path(track_path: &str) -> Result<PathBuf> {
+//     let path = Path::new(track_path);
+//     let parent_path = path.parent().unwrap();
+//     let file_name_without_extension = path.file_stem().unwrap().to_str().unwrap();
+//     let lrc_path =
+//         Path::new(parent_path).join(format!("{}.{}", file_name_without_extension, "lrc"));
+//     Ok(lrc_path)
+// }
 
 fn embed_lyrics(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, is_instrumental: bool) {
     if track_path.to_lowercase().ends_with(".mp3") {
@@ -160,14 +158,14 @@ fn embed_lyrics(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, is_in
             Err(e) => println!("Error embedding lyrics in MP3: {}", e),
         }
     } else if track_path.to_lowercase().ends_with(".flac") {
-        match embed_lyrics_flac(track_path, plain_lyrics, synced_lyrics, is_instrumental) {
+        match embed_lyrics_flac(track_path, plain_lyrics, synced_lyrics) {
             Ok(_) => (),
             Err(e) => println!("Error embedding lyrics in FLAC: {}", e),
         }
     }
 }
 
-fn embed_lyrics_flac(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, is_instrumental: bool) -> Result<()> {
+fn embed_lyrics_flac(track_path: &str, plain_lyrics: &str, synced_lyrics: &str) -> Result<()> {
     let mut file_content = OpenOptions::new().read(true).write(true).open(track_path)?;
     let mut flac_file = FlacFile::read_from(&mut file_content, ParseOptions::new())?;
 
