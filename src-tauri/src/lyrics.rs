@@ -193,40 +193,49 @@ fn embed_lyrics_mp3(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, i
     let mut mp3_file = MpegFile::read_from(&mut file_content, ParseOptions::new())?;
 
     if let Some(id3v2) = mp3_file.id3v2_mut() {
-        if is_instrumental {
-            insert_id3v2_uslt_frame(id3v2, "[Instrumental]")?;
-            insert_id3v2_sylt_frame(id3v2, "[0:00.000] [Instrumental]")?;
-            insert_id3v2_txxx_lyrics_frame(id3v2, "[0:00.000] [Instrumental]")?;
-        } else {
-            insert_id3v2_uslt_frame(id3v2, plain_lyrics)?;
 
-            // Get title and artist from tags, fallback to empty string if not found
-            let title = id3v2.get(&FrameId::new("TIT2")?)
-                .and_then(|f| {
-                    if let Frame::Text(text) = f {
-                        Some(text.value.as_str())
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or("");
-            // let artist = id3v2.get(&FrameId::new("TPE1")?)
-            //     .and_then(|f| {
-            //         if let Frame::Text(text) = f {
-            //             Some(text.value.as_str())
-            //         } else {
-            //             None
-            //         }
-            //     })
-            //     .unwrap_or("");
+        if is_instrumental {
+            insert_id3v2_uslt_frame(id3v2, "[Instrumental]\n")?; // Insert instrumental USLT
+
+            let titlei = {
+                let title_tag = id3v2
+                    .get(&FrameId::new("TIT2")?)
+                    .and_then(|f| {
+                        if let Frame::Text(text) = f {
+                            Some(text.value.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or("");
+
+                if title_tag.is_empty() { "---" } else { title_tag }
+            };
+
+            let instr_sylt = format!("[0:00.00] <{} [Instrumental]>\n", titlei);
+
+            insert_id3v2_sylt_frame(id3v2, &instr_sylt)?; // Insert instrumental SYLT
+            insert_id3v2_txxx_lyrics_frame(id3v2, &instr_sylt)?; // Insert instrumental custom SYLT
+        } else {
+            insert_id3v2_uslt_frame(id3v2, plain_lyrics)?; // Insert USLT
+
+            let title = {
+                let title_tag = id3v2
+                    .get(&FrameId::new("TIT2")?)
+                    .and_then(|f| {
+                        if let Frame::Text(text) = f {
+                            Some(text.value.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or("");
+
+                if title_tag.is_empty() { "---" } else { title_tag }
+            };
 
             // Build the prefix
-            let prefix = if !title.is_empty() {
-                format!("[0:00.000] <{}>\n", title)
-                // format!("[0:00.000] 🎵 {} 🎵\n", title)
-            } else {
-                "[0:00.000] ---\n".to_string()
-            };
+            let prefix = format!("[0:00.00] <{}>\n", title);
 
             // Prepend the prefix if not already present
             let lyrics_with_prefix = if synced_lyrics.is_empty() {
@@ -237,8 +246,8 @@ fn embed_lyrics_mp3(track_path: &str, plain_lyrics: &str, synced_lyrics: &str, i
                 Box::leak(format!("{}{}", prefix, synced_lyrics).into_boxed_str())
             };
 
-            insert_id3v2_sylt_frame(id3v2, lyrics_with_prefix)?;
-            insert_id3v2_txxx_lyrics_frame(id3v2, lyrics_with_prefix)?;
+            insert_id3v2_sylt_frame(id3v2, lyrics_with_prefix)?; // Insert SYLT
+            insert_id3v2_txxx_lyrics_frame(id3v2, lyrics_with_prefix)?; // Insert custom SYLT
         }
 
         mp3_file.save_to_path(track_path, WriteOptions::default())?;
@@ -311,10 +320,10 @@ fn synced_lyrics_to_sylt_vec(synced_lyrics: &str) -> Result<Vec<(u32, String)>> 
 
     // Check for a prefix line at the start
     if let Some(first_line) = lines.clone().next() {
-        if first_line.starts_with("[0:00.000]") {
+        if first_line.starts_with("[0:00.00]") {
             // Add the prefix line as the first timed line
             let prefix_text = first_line
-                .trim_start_matches("[0:00.000]")
+                .trim_start_matches("[0:00.00]")
                 .trim()
                 .to_string();
             result.push((0, prefix_text));
